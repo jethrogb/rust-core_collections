@@ -1,0 +1,24 @@
+[package]
+name = "core_collections"
+version = "0.2.20160707"
+authors = ["The Rust Project Developers", "Jethro Beekman"]
+license = "MIT/Apache-2.0"
+description = """
+This is a copy of libstd::collections with all the parts that don't work in 
+core removed. Most importantly, it provides HashMap and HashSet.
+
+This crate is (mostly) automatically generated from the rust git source. The
+version of the source that corresponds to your compiler version will be
+selected automatically by the build script.
+"""
+repository = "https://github.com/jethrogb/rust-core_collections"
+documentation = "https://doc.rust-lang.org/nightly/std/collections/index.html"
+keywords = ["core", "no_std", "collections", "hashmap", "hashset"]
+
+build = "build.rs"
+
+[dependencies]
+rand = { path = "/tmp/rand" }
+
+[build-dependencies]
+rustc_version = "0.1.7"
