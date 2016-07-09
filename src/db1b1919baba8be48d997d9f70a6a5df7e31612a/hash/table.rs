@@ -10,14 +10,14 @@
 
 use alloc::heap::{EMPTY, allocate, deallocate};
 
-use cmp;
-use hash::{BuildHasher, Hash, Hasher};
-use intrinsics::needs_drop;
-use marker;
-use mem::{align_of, size_of};
-use mem;
-use ops::{Deref, DerefMut};
-use ptr::{self, Unique};
+use core::cmp;
+use core::hash::{BuildHasher, Hash, Hasher};
+use core::intrinsics::needs_drop;
+use core::marker;
+use core::mem::{align_of, size_of};
+use core::mem;
+use core::ops::{Deref, DerefMut};
+use core::ptr::{self, Unique};
 
 use self::BucketState::*;
 
