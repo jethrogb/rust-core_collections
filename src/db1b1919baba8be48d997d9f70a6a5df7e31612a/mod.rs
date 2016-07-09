@@ -407,38 +407,25 @@
 //! assert_eq!(map.keys().next().unwrap().b, "baz");
 //! ```
 
-#![stable(feature = "rust1", since = "1.0.0")]
-
-#[stable(feature = "rust1", since = "1.0.0")]
 pub use core_collections::Bound;
-#[stable(feature = "rust1", since = "1.0.0")]
 pub use core_collections::{BinaryHeap, BTreeMap, BTreeSet};
-#[stable(feature = "rust1", since = "1.0.0")]
 pub use core_collections::{LinkedList, VecDeque};
-#[stable(feature = "rust1", since = "1.0.0")]
 pub use core_collections::{binary_heap, btree_map, btree_set};
-#[stable(feature = "rust1", since = "1.0.0")]
 pub use core_collections::{linked_list, vec_deque};
 
-#[stable(feature = "rust1", since = "1.0.0")]
 pub use self::hash_map::HashMap;
-#[stable(feature = "rust1", since = "1.0.0")]
 pub use self::hash_set::HashSet;
 
 mod hash;
 
-#[stable(feature = "rust1", since = "1.0.0")]
 pub mod hash_map {
     //! A hash map implementation which uses linear probing with Robin
     //! Hood bucket stealing.
-    #[stable(feature = "rust1", since = "1.0.0")]
     pub use super::hash::map::*;
 }
 
-#[stable(feature = "rust1", since = "1.0.0")]
 pub mod hash_set {
     //! An implementation of a hash set using the underlying representation of a
     //! HashMap where the value is ().
-    #[stable(feature = "rust1", since = "1.0.0")]
     pub use super::hash::set::*;
 }
