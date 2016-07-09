@@ -8,17 +8,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![unstable(feature = "hashmap_hasher", reason = "hasher stuff is unclear",
-            issue = "27713")]
-#![rustc_deprecated(since = "1.7.0", reason = "support moved to std::hash")]
 #![allow(deprecated)]
 
-use clone::Clone;
-use default::Default;
-use hash;
-use marker;
+use core::clone::Clone;
+use core::default::Default;
+use core::hash;
+use core::marker;
 
-pub use hash::HashState;
+pub use core::hash::HashState;
 
 /// A structure which is a factory for instances of `Hasher` which implement the
 /// default trait.
