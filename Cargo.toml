@@ -10,6 +10,9 @@ core removed. Most importantly, it provides HashMap and HashSet.
 This crate is (mostly) automatically generated from the rust git source. The
 version of the source that corresponds to your compiler version will be
 selected automatically by the build script.
+
+This depends on the rand crate, so make sure to include that and configure the
+no_std feature on it.
 """
 repository = "https://github.com/jethrogb/rust-core_collections"
 documentation = "https://doc.rust-lang.org/nightly/std/collections/index.html"
@@ -18,7 +21,7 @@ keywords = ["core", "no_std", "collections", "hashmap", "hashset"]
 build = "build.rs"
 
 [dependencies]
-rand = { path = "/tmp/rand" }
+rand = "0.3"
 
 [build-dependencies]
 rustc_version = "0.1.7"
