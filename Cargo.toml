@@ -1,6 +1,6 @@
 [package]
 name = "core_collections"
-version = "0.2.20160708"
+version = "0.3.20160708"
 authors = ["The Rust Project Developers", "Jethro Beekman"]
 license = "MIT/Apache-2.0"
 description = """
@@ -21,7 +21,7 @@ keywords = ["core", "no_std", "collections", "hashmap", "hashset"]
 build = "build.rs"
 
 [dependencies]
-rand = "0.3"
+rand = { version = "0.3", optional = true }
 
 [build-dependencies]
 rustc_version = "0.1.7"
