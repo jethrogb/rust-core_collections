@@ -21,7 +21,7 @@ keywords = ["core", "no_std", "collections", "hashmap", "hashset"]
 build = "build.rs"
 
 [dependencies]
-rand = { version = "0.3", optional = true }
+rand = { version = "0.3", optional = true, default-features = false }
 
 [build-dependencies]
 rustc_version = "0.1.7"
