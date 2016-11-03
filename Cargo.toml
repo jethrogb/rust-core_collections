@@ -1,6 +1,6 @@
 [package]
 name = "core_collections"
-version = "0.3.20160708"
+version = "0.3.20161028"
 authors = ["The Rust Project Developers", "Jethro Beekman"]
 license = "MIT/Apache-2.0"
 description = """

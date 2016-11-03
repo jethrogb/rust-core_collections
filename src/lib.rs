@@ -1,5 +1,6 @@
 #![allow(stable_features,unused_features)]
-#![feature(collections,alloc,unsafe_no_drop_flag,dropck_parametricity,collections_bound,heap_api,core_intrinsics,unique,oom,filling_drop,sip_hash_13,hashmap_hasher)]
+#![feature(collections,alloc,dropck_parametricity,collections_bound,heap_api,core_intrinsics,unique,oom,filling_drop,sip_hash_13,hashmap_hasher,shared,fused,collections_range)]
+#![cfg_attr(not(no_no_drop_flag),feature(unsafe_no_drop_flag))]
 #![no_std]
 
 #[macro_use]
