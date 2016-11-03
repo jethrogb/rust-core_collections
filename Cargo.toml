@@ -17,6 +17,13 @@ no_std feature on it.
 repository = "https://github.com/jethrogb/rust-core_collections"
 documentation = "https://doc.rust-lang.org/nightly/std/collections/index.html"
 keywords = ["core", "no_std", "collections", "hashmap", "hashset"]
+include = [
+	"build.rs",
+	"Cargo.toml",
+	"LICENSE-*",
+	"mapping.rs",
+	"src/**/*.rs",
+]
 
 build = "build.rs"
 
