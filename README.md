@@ -8,43 +8,33 @@ First, make sure the commit you want to add is fetch in the git tree at
 `/your/rust/dir/.git`. Then, import the right source files:
 
 ```
-$ echo FULL_COMMIT_ID ...|GIT_DIR=/your/rust/dir/.git ./sync.sh
+$ echo FULL_COMMIT_ID ...|GIT_DIR=/your/rust/dir/.git ./build-src.sh
 ```
 
 Instead of echoing in the commit IDs, you might pipe in `rustc-commit-db
 list-valid`.
 
-Now look at the changes with `git status`. If nothing changed then the commit
-you tried to add was already there. Otherwise commit all changes and new files
-now. If only `mapping.rs` changed, the I/O code has not changed for this
-particular commit. If a directory in `src/` was added, after committing, `cd`
-into it to apply the patch.
+The build-src script will prompt you to create patches for new commits. You
+will be dropped in a shell prompt with a temporary new, clean, git repository
+just for this patch. Make any changes necessary to make it build. **Don't**
+commit any changes! When exiting the shell and the script will use the working
+tree diff as the patch. The temporary git repository will be deleted. Before
+dropping into the shell, the script will show you nearby commits, you can try
+to apply `$PATCH_DIR/that_commit.patch` and see if it works for you.
 
-Find out which previously-existing commit is closest to the new one and search
-this git repository for a commit with the description `Patch COMMIT for core`.
-For example, if you're adding dd56a6ad0845b76509c4f8967e8ca476471ab7e0, the
-best closest commit is 80d733385aa2ff150a5d6f83ecfe55afc7e19e68.
+## Editing patches
 
-```
-$ git log --pretty=oneline --grep=80d733385aa2ff150a5d6f83ecfe55afc7e19e68
-92fc0ad81c432b5fa3e848fc1892815ca2f55100 Patch 80d733385aa2ff150a5d6f83ecfe55afc7e19e68 for core
-```
-
-The commit ID at the start of the line is the patch we'll try to apply:
-
-```sh
-$ git show 92fc0ad81c432b5fa3e848fc1892815ca2f55100|patch -p3
-$ cargo build
-```
-
-Now, fix any errors `cargo` reports. If `patch` also reported errors, you may
-look at the rejects for inspiration ;).
-
-Finally, commit this new version:
+To edit all patches, again make a checkout of the rust source. Then, run:
 
 ```
-$ git commit -m "Patch dd56a6ad0845b76509c4f8967e8ca476471ab7e0 for core" .
+$ GIT_DIR=/your/rust/dir/.git ./edit-patches.sh
 ```
 
-Do not commit any files in different directories, this will break the patching
-scheme.
+The script will prompt you to make changes. You will be dropped in a shell
+prompt with a temporary new, clean, git repository just for this patch edit.
+The original patch will be the HEAD commit in the repository. Make any changes
+you want. **Don't** commit any changes! When exiting the shell and the script
+will use the diff between the working tree and the root commit as the patch.
+The temporary git repository will be deleted. When editing further commits, the
+previous patch changes will already be applied to the working tree (if
+succesful).
