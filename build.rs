@@ -47,6 +47,12 @@ fn main() {
 		}
 	};
 	
+	if let Some(date)=rustc_version::version_meta().commit_date {
+		if &date[..]>"2016-08-23" {
+			println!("cargo:rustc-cfg=no_no_drop_flag");
+		}
+	}
+	
 	let mut dest_path=PathBuf::from(env::var_os("OUT_DIR").unwrap());
 	dest_path.push("collections.rs");
 	let mut f=File::create(&dest_path).unwrap();
