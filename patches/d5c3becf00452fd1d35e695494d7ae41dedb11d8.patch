@@ -1,0 +1,1842 @@
+diff --git a/hash/map.rs b/hash/map.rs
+index a314717..f9666cc 100644
+--- a/hash/map.rs
++++ b/hash/map.rs
+@@ -11,21 +11,22 @@
+ use self::Entry::*;
+ use self::VacantEntryState::*;
+ 
+-use cell::Cell;
+-use borrow::Borrow;
+-use cmp::max;
+-use fmt::{self, Debug};
++use core::cell::Cell;
++use core::borrow::Borrow;
++use core::cmp::max;
++use core::fmt::{self, Debug};
+ #[allow(deprecated)]
+-use hash::{Hash, Hasher, BuildHasher, SipHasher13};
+-use iter::{FromIterator, FusedIterator};
+-use mem::{self, replace};
+-use ops::{Deref, Index};
++use core::hash::{Hash, Hasher, BuildHasher, SipHasher13};
++use core::iter::{FromIterator, FusedIterator};
++use core::mem::{self, replace};
++use core::ops::{Deref, Index};
++#[cfg(feature="rand")]
+ use rand::{self, Rng};
+ 
+ use super::table::{self, Bucket, EmptyBucket, FullBucket, FullBucketMut, RawTable, SafeHash};
+ use super::table::BucketState::{Empty, Full};
+ 
+-const MIN_NONZERO_RAW_CAPACITY: usize = 32;     // must be a power of two
++const MIN_NONZERO_RAW_CAPACITY: usize = 32; // must be a power of two
+ 
+ /// The default behavior of HashMap implements a maximum load factor of 90.9%.
+ #[derive(Clone)]
+@@ -346,9 +347,8 @@ impl DefaultResizePolicy {
+ ///     // use the values stored in map
+ /// }
+ /// ```
+-
++#[cfg(feature="rand")]
+ #[derive(Clone)]
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct HashMap<K, V, S = RandomState> {
+     // All hashes are keyed on these values, to prevent hash collision attacks.
+     hash_builder: S,
+@@ -357,6 +357,16 @@ pub struct HashMap<K, V, S = RandomState> {
+ 
+     resize_policy: DefaultResizePolicy,
+ }
++#[cfg(not(feature="rand"))]
++#[derive(Clone)]
++pub struct HashMap<K, V, S> {
++    // All hashes are keyed on these values, to prevent hash collision attacks.
++    hash_builder: S,
++
++    table: RawTable<K, V>,
++
++    resize_policy: DefaultResizePolicy,
++}
+ 
+ /// Search for a pre-hashed key.
+ #[inline]
+@@ -545,6 +555,7 @@ impl<K, V, S> HashMap<K, V, S>
+     }
+ }
+ 
++#[cfg(feature="rand")]
+ impl<K: Hash + Eq, V> HashMap<K, V, RandomState> {
+     /// Creates an empty `HashMap`.
+     ///
+@@ -555,7 +566,6 @@ impl<K: Hash + Eq, V> HashMap<K, V, RandomState> {
+     /// let mut map: HashMap<&str, isize> = HashMap::new();
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn new() -> HashMap<K, V, RandomState> {
+         Default::default()
+     }
+@@ -572,7 +582,6 @@ impl<K: Hash + Eq, V> HashMap<K, V, RandomState> {
+     /// let mut map: HashMap<&str, isize> = HashMap::with_capacity(10);
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn with_capacity(capacity: usize) -> HashMap<K, V, RandomState> {
+         HashMap::with_capacity_and_hasher(capacity, Default::default())
+     }
+@@ -603,7 +612,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// map.insert(1, 2);
+     /// ```
+     #[inline]
+-    #[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
+     pub fn with_hasher(hash_builder: S) -> HashMap<K, V, S> {
+         HashMap {
+             hash_builder: hash_builder,
+@@ -633,7 +641,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// map.insert(1, 2);
+     /// ```
+     #[inline]
+-    #[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
+     pub fn with_capacity_and_hasher(capacity: usize, hash_builder: S) -> HashMap<K, V, S> {
+         let resize_policy = DefaultResizePolicy::new();
+         let raw_cap = resize_policy.raw_capacity(capacity);
+@@ -645,7 +652,6 @@ impl<K, V, S> HashMap<K, V, S>
+     }
+ 
+     /// Returns a reference to the map's hasher.
+-    #[stable(feature = "hashmap_public_hasher", since = "1.9.0")]
+     pub fn hasher(&self) -> &S {
+         &self.hash_builder
+     }
+@@ -663,7 +669,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert!(map.capacity() >= 100);
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn capacity(&self) -> usize {
+         self.resize_policy.capacity(self.raw_capacity())
+     }
+@@ -689,7 +694,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// let mut map: HashMap<&str, isize> = HashMap::new();
+     /// map.reserve(10);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn reserve(&mut self, additional: usize) {
+         let remaining = self.capacity() - self.len(); // this can't overflow
+         if remaining < additional {
+@@ -796,7 +800,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// map.shrink_to_fit();
+     /// assert!(map.capacity() >= 2);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn shrink_to_fit(&mut self) {
+         let new_raw_cap = self.resize_policy.raw_capacity(self.len());
+         if self.raw_capacity() != new_raw_cap {
+@@ -847,7 +850,6 @@ impl<K, V, S> HashMap<K, V, S>
+     ///     println!("{}", key);
+     /// }
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn keys(&self) -> Keys<K, V> {
+         Keys { inner: self.iter() }
+     }
+@@ -869,7 +871,6 @@ impl<K, V, S> HashMap<K, V, S>
+     ///     println!("{}", val);
+     /// }
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn values(&self) -> Values<K, V> {
+         Values { inner: self.iter() }
+     }
+@@ -896,7 +897,6 @@ impl<K, V, S> HashMap<K, V, S>
+     ///     println!("{}", val);
+     /// }
+     /// ```
+-    #[stable(feature = "map_values_mut", since = "1.10.0")]
+     pub fn values_mut(&mut self) -> ValuesMut<K, V> {
+         ValuesMut { inner: self.iter_mut() }
+     }
+@@ -918,7 +918,6 @@ impl<K, V, S> HashMap<K, V, S>
+     ///     println!("key: {} val: {}", key, val);
+     /// }
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn iter(&self) -> Iter<K, V> {
+         Iter { inner: self.table.iter() }
+     }
+@@ -946,7 +945,6 @@ impl<K, V, S> HashMap<K, V, S>
+     ///     println!("key: {} val: {}", key, val);
+     /// }
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn iter_mut(&mut self) -> IterMut<K, V> {
+         IterMut { inner: self.table.iter_mut() }
+     }
+@@ -970,7 +968,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert_eq!(letters[&'u'], 1);
+     /// assert_eq!(letters.get(&'y'), None);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn entry(&mut self, key: K) -> Entry<K, V> {
+         // Gotta resize now.
+         self.reserve(1);
+@@ -989,7 +986,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// a.insert(1, "a");
+     /// assert_eq!(a.len(), 1);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn len(&self) -> usize {
+         self.table.size()
+     }
+@@ -1007,7 +1003,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert!(!a.is_empty());
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn is_empty(&self) -> bool {
+         self.len() == 0
+     }
+@@ -1032,7 +1027,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert!(a.is_empty());
+     /// ```
+     #[inline]
+-    #[stable(feature = "drain", since = "1.6.0")]
+     pub fn drain(&mut self) -> Drain<K, V> {
+         Drain { inner: self.table.drain() }
+     }
+@@ -1050,7 +1044,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// a.clear();
+     /// assert!(a.is_empty());
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     #[inline]
+     pub fn clear(&mut self) {
+         self.drain();
+@@ -1075,7 +1068,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert_eq!(map.get(&1), Some(&"a"));
+     /// assert_eq!(map.get(&2), None);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+         where K: Borrow<Q>,
+               Q: Hash + Eq
+@@ -1102,7 +1094,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert_eq!(map.contains_key(&1), true);
+     /// assert_eq!(map.contains_key(&2), false);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+         where K: Borrow<Q>,
+               Q: Hash + Eq
+@@ -1131,7 +1122,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// }
+     /// assert_eq!(map[&1], "b");
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut V>
+         where K: Borrow<Q>,
+               Q: Hash + Eq
+@@ -1163,7 +1153,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert_eq!(map.insert(37, "c"), Some("b"));
+     /// assert_eq!(map[&37], "c");
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+         let hash = self.make_hash(&k);
+         self.reserve(1);
+@@ -1190,7 +1179,6 @@ impl<K, V, S> HashMap<K, V, S>
+     /// assert_eq!(map.remove(&1), Some("a"));
+     /// assert_eq!(map.remove(&1), None);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<V>
+         where K: Borrow<Q>,
+               Q: Hash + Eq
+@@ -1203,7 +1191,6 @@ impl<K, V, S> HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<K, V, S> PartialEq for HashMap<K, V, S>
+     where K: Eq + Hash,
+           V: PartialEq,
+@@ -1218,7 +1205,6 @@ impl<K, V, S> PartialEq for HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<K, V, S> Eq for HashMap<K, V, S>
+     where K: Eq + Hash,
+           V: Eq,
+@@ -1226,7 +1212,6 @@ impl<K, V, S> Eq for HashMap<K, V, S>
+ {
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<K, V, S> Debug for HashMap<K, V, S>
+     where K: Eq + Hash + Debug,
+           V: Debug,
+@@ -1237,7 +1222,6 @@ impl<K, V, S> Debug for HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<K, V, S> Default for HashMap<K, V, S>
+     where K: Eq + Hash,
+           S: BuildHasher + Default
+@@ -1248,7 +1232,6 @@ impl<K, V, S> Default for HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, Q: ?Sized, V, S> Index<&'a Q> for HashMap<K, V, S>
+     where K: Eq + Hash + Borrow<Q>,
+           Q: Eq + Hash,
+@@ -1263,20 +1246,18 @@ impl<'a, K, Q: ?Sized, V, S> Index<&'a Q> for HashMap<K, V, S>
+ }
+ 
+ /// HashMap iterator.
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Iter<'a, K: 'a, V: 'a> {
+     inner: table::Iter<'a, K, V>,
+ }
+ 
+ // FIXME(#19839) Remove in favor of `#[derive(Clone)]`
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> Clone for Iter<'a, K, V> {
+     fn clone(&self) -> Iter<'a, K, V> {
+         Iter { inner: self.inner.clone() }
+     }
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K: Debug, V: Debug> fmt::Debug for Iter<'a, K, V> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1286,32 +1267,28 @@ impl<'a, K: Debug, V: Debug> fmt::Debug for Iter<'a, K, V> {
+ }
+ 
+ /// HashMap mutable values iterator.
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct IterMut<'a, K: 'a, V: 'a> {
+     inner: table::IterMut<'a, K, V>,
+ }
+ 
+ /// HashMap move iterator.
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct IntoIter<K, V> {
+     pub(super) inner: table::IntoIter<K, V>,
+ }
+ 
+ /// HashMap keys iterator.
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Keys<'a, K: 'a, V: 'a> {
+     inner: Iter<'a, K, V>,
+ }
+ 
+ // FIXME(#19839) Remove in favor of `#[derive(Clone)]`
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> Clone for Keys<'a, K, V> {
+     fn clone(&self) -> Keys<'a, K, V> {
+         Keys { inner: self.inner.clone() }
+     }
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K: Debug, V: Debug> fmt::Debug for Keys<'a, K, V> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1321,20 +1298,18 @@ impl<'a, K: Debug, V: Debug> fmt::Debug for Keys<'a, K, V> {
+ }
+ 
+ /// HashMap values iterator.
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Values<'a, K: 'a, V: 'a> {
+     inner: Iter<'a, K, V>,
+ }
+ 
+ // FIXME(#19839) Remove in favor of `#[derive(Clone)]`
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> Clone for Values<'a, K, V> {
+     fn clone(&self) -> Values<'a, K, V> {
+         Values { inner: self.inner.clone() }
+     }
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K: Debug, V: Debug> fmt::Debug for Values<'a, K, V> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1344,13 +1319,11 @@ impl<'a, K: Debug, V: Debug> fmt::Debug for Values<'a, K, V> {
+ }
+ 
+ /// HashMap drain iterator.
+-#[stable(feature = "drain", since = "1.6.0")]
+ pub struct Drain<'a, K: 'a, V: 'a> {
+     pub(super) inner: table::Drain<'a, K, V>,
+ }
+ 
+ /// Mutable HashMap values iterator.
+-#[stable(feature = "map_values_mut", since = "1.10.0")]
+ pub struct ValuesMut<'a, K: 'a, V: 'a> {
+     inner: IterMut<'a, K, V>,
+ }
+@@ -1401,20 +1374,14 @@ impl<'a, K, V> InternalEntry<K, V, &'a mut RawTable<K, V>> {
+ ///
+ /// [`HashMap`]: struct.HashMap.html
+ /// [`entry`]: struct.HashMap.html#method.entry
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub enum Entry<'a, K: 'a, V: 'a> {
+     /// An occupied Entry.
+-    #[stable(feature = "rust1", since = "1.0.0")]
+-    Occupied(#[stable(feature = "rust1", since = "1.0.0")]
+-             OccupiedEntry<'a, K, V>),
++    Occupied(OccupiedEntry<'a, K, V>),
+ 
+     /// A vacant Entry.
+-    #[stable(feature = "rust1", since = "1.0.0")]
+-    Vacant(#[stable(feature = "rust1", since = "1.0.0")]
+-           VacantEntry<'a, K, V>),
++    Vacant(VacantEntry<'a, K, V>),
+ }
+ 
+-#[stable(feature= "debug_hash_map", since = "1.12.0")]
+ impl<'a, K: 'a + Debug, V: 'a + Debug> Debug for Entry<'a, K, V> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         match *self {
+@@ -1436,13 +1403,11 @@ impl<'a, K: 'a + Debug, V: 'a + Debug> Debug for Entry<'a, K, V> {
+ /// It is part of the [`Entry`] enum.
+ ///
+ /// [`Entry`]: enum.Entry.html
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct OccupiedEntry<'a, K: 'a, V: 'a> {
+     key: Option<K>,
+     elem: FullBucket<K, V, &'a mut RawTable<K, V>>,
+ }
+ 
+-#[stable(feature= "debug_hash_map", since = "1.12.0")]
+ impl<'a, K: 'a + Debug, V: 'a + Debug> Debug for OccupiedEntry<'a, K, V> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_struct("OccupiedEntry")
+@@ -1456,14 +1421,12 @@ impl<'a, K: 'a + Debug, V: 'a + Debug> Debug for OccupiedEntry<'a, K, V> {
+ /// It is part of the [`Entry`] enum.
+ ///
+ /// [`Entry`]: enum.Entry.html
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct VacantEntry<'a, K: 'a, V: 'a> {
+     hash: SafeHash,
+     key: K,
+     elem: VacantEntryState<K, V, &'a mut RawTable<K, V>>,
+ }
+ 
+-#[stable(feature= "debug_hash_map", since = "1.12.0")]
+ impl<'a, K: 'a + Debug, V: 'a> Debug for VacantEntry<'a, K, V> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_tuple("VacantEntry")
+@@ -1481,7 +1444,6 @@ enum VacantEntryState<K, V, M> {
+     NoElem(EmptyBucket<K, V, M>),
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V, S> IntoIterator for &'a HashMap<K, V, S>
+     where K: Eq + Hash,
+           S: BuildHasher
+@@ -1494,7 +1456,6 @@ impl<'a, K, V, S> IntoIterator for &'a HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V, S> IntoIterator for &'a mut HashMap<K, V, S>
+     where K: Eq + Hash,
+           S: BuildHasher
+@@ -1507,7 +1468,6 @@ impl<'a, K, V, S> IntoIterator for &'a mut HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<K, V, S> IntoIterator for HashMap<K, V, S>
+     where K: Eq + Hash,
+           S: BuildHasher
+@@ -1537,7 +1497,6 @@ impl<K, V, S> IntoIterator for HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> Iterator for Iter<'a, K, V> {
+     type Item = (&'a K, &'a V);
+ 
+@@ -1550,7 +1509,6 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
+         self.inner.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
+     #[inline]
+     fn len(&self) -> usize {
+@@ -1558,10 +1516,8 @@ impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
+     }
+ }
+ 
+-#[unstable(feature = "fused", issue = "35602")]
+ impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
+     type Item = (&'a K, &'a mut V);
+ 
+@@ -1574,20 +1530,20 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
+         self.inner.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, K, V> ExactSizeIterator for IterMut<'a, K, V> {
+     #[inline]
+     fn len(&self) -> usize {
+         self.inner.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, K, V> FusedIterator for IterMut<'a, K, V> {}
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K, V> fmt::Debug for IterMut<'a, K, V>
+     where K: fmt::Debug,
+-          V: fmt::Debug,
++          V: fmt::Debug
+ {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1596,7 +1552,7 @@ impl<'a, K, V> fmt::Debug for IterMut<'a, K, V>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<K, V> Iterator for IntoIter<K, V> {
+     type Item = (K, V);
+ 
+@@ -1609,17 +1565,17 @@ impl<K, V> Iterator for IntoIter<K, V> {
+         self.inner.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<K, V> ExactSizeIterator for IntoIter<K, V> {
+     #[inline]
+     fn len(&self) -> usize {
+         self.inner.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<K, V> FusedIterator for IntoIter<K, V> {}
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<K: Debug, V: Debug> fmt::Debug for IntoIter<K, V> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1628,7 +1584,7 @@ impl<K: Debug, V: Debug> fmt::Debug for IntoIter<K, V> {
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, K, V> Iterator for Keys<'a, K, V> {
+     type Item = &'a K;
+ 
+@@ -1641,17 +1597,14 @@ impl<'a, K, V> Iterator for Keys<'a, K, V> {
+         self.inner.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> ExactSizeIterator for Keys<'a, K, V> {
+     #[inline]
+     fn len(&self) -> usize {
+         self.inner.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
+ impl<'a, K, V> FusedIterator for Keys<'a, K, V> {}
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> Iterator for Values<'a, K, V> {
+     type Item = &'a V;
+ 
+@@ -1664,17 +1617,14 @@ impl<'a, K, V> Iterator for Values<'a, K, V> {
+         self.inner.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K, V> ExactSizeIterator for Values<'a, K, V> {
+     #[inline]
+     fn len(&self) -> usize {
+         self.inner.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
+ impl<'a, K, V> FusedIterator for Values<'a, K, V> {}
+ 
+-#[stable(feature = "map_values_mut", since = "1.10.0")]
+ impl<'a, K, V> Iterator for ValuesMut<'a, K, V> {
+     type Item = &'a mut V;
+ 
+@@ -1687,20 +1637,20 @@ impl<'a, K, V> Iterator for ValuesMut<'a, K, V> {
+         self.inner.size_hint()
+     }
+ }
+-#[stable(feature = "map_values_mut", since = "1.10.0")]
++
+ impl<'a, K, V> ExactSizeIterator for ValuesMut<'a, K, V> {
+     #[inline]
+     fn len(&self) -> usize {
+         self.inner.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, K, V> FusedIterator for ValuesMut<'a, K, V> {}
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K, V> fmt::Debug for ValuesMut<'a, K, V>
+     where K: fmt::Debug,
+-          V: fmt::Debug,
++          V: fmt::Debug
+ {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1709,7 +1659,7 @@ impl<'a, K, V> fmt::Debug for ValuesMut<'a, K, V>
+     }
+ }
+ 
+-#[stable(feature = "drain", since = "1.6.0")]
++
+ impl<'a, K, V> Iterator for Drain<'a, K, V> {
+     type Item = (K, V);
+ 
+@@ -1722,20 +1672,20 @@ impl<'a, K, V> Iterator for Drain<'a, K, V> {
+         self.inner.size_hint()
+     }
+ }
+-#[stable(feature = "drain", since = "1.6.0")]
++
+ impl<'a, K, V> ExactSizeIterator for Drain<'a, K, V> {
+     #[inline]
+     fn len(&self) -> usize {
+         self.inner.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, K, V> FusedIterator for Drain<'a, K, V> {}
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K, V> fmt::Debug for Drain<'a, K, V>
+     where K: fmt::Debug,
+-          V: fmt::Debug,
++          V: fmt::Debug
+ {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1745,7 +1695,6 @@ impl<'a, K, V> fmt::Debug for Drain<'a, K, V>
+ }
+ 
+ impl<'a, K, V> Entry<'a, K, V> {
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     /// Ensures a value is in the entry by inserting the default if empty, and returns
+     /// a mutable reference to the value in the entry.
+     ///
+@@ -1769,7 +1718,6 @@ impl<'a, K, V> Entry<'a, K, V> {
+         }
+     }
+ 
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     /// Ensures a value is in the entry by inserting the result of the default function if empty,
+     /// and returns a mutable reference to the value in the entry.
+     ///
+@@ -1802,7 +1750,6 @@ impl<'a, K, V> Entry<'a, K, V> {
+     /// let mut map: HashMap<&str, u32> = HashMap::new();
+     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
+     /// ```
+-    #[stable(feature = "map_entry_keys", since = "1.10.0")]
+     pub fn key(&self) -> &K {
+         match *self {
+             Occupied(ref entry) => entry.key(),
+@@ -1823,14 +1770,11 @@ impl<'a, K, V> OccupiedEntry<'a, K, V> {
+     /// map.entry("poneyland").or_insert(12);
+     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
+     /// ```
+-    #[stable(feature = "map_entry_keys", since = "1.10.0")]
+     pub fn key(&self) -> &K {
+         self.elem.read().0
+     }
+ 
+     /// Deprecated, renamed to `remove_entry`
+-    #[unstable(feature = "map_entry_recover_keys", issue = "34285")]
+-    #[rustc_deprecated(since = "1.12.0", reason = "renamed to `remove_entry`")]
+     pub fn remove_pair(self) -> (K, V) {
+         self.remove_entry()
+     }
+@@ -1853,7 +1797,6 @@ impl<'a, K, V> OccupiedEntry<'a, K, V> {
+     ///
+     /// assert_eq!(map.contains_key("poneyland"), false);
+     /// ```
+-    #[stable(feature = "map_entry_recover_keys2", since = "1.12.0")]
+     pub fn remove_entry(self) -> (K, V) {
+         pop_internal(self.elem)
+     }
+@@ -1873,7 +1816,6 @@ impl<'a, K, V> OccupiedEntry<'a, K, V> {
+     ///     assert_eq!(o.get(), &12);
+     /// }
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn get(&self) -> &V {
+         self.elem.read().1
+     }
+@@ -1896,7 +1838,6 @@ impl<'a, K, V> OccupiedEntry<'a, K, V> {
+     ///
+     /// assert_eq!(map["poneyland"], 22);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn get_mut(&mut self) -> &mut V {
+         self.elem.read_mut().1
+     }
+@@ -1920,7 +1861,6 @@ impl<'a, K, V> OccupiedEntry<'a, K, V> {
+     ///
+     /// assert_eq!(map["poneyland"], 22);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn into_mut(self) -> &'a mut V {
+         self.elem.into_mut_refs().1
+     }
+@@ -1942,7 +1882,6 @@ impl<'a, K, V> OccupiedEntry<'a, K, V> {
+     ///
+     /// assert_eq!(map["poneyland"], 15);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn insert(&mut self, mut value: V) -> V {
+         let old_value = self.get_mut();
+         mem::swap(&mut value, old_value);
+@@ -1966,7 +1905,6 @@ impl<'a, K, V> OccupiedEntry<'a, K, V> {
+     ///
+     /// assert_eq!(map.contains_key("poneyland"), false);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn remove(self) -> V {
+         pop_internal(self.elem).1
+     }
+@@ -1991,7 +1929,6 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
+     /// let mut map: HashMap<&str, u32> = HashMap::new();
+     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
+     /// ```
+-    #[stable(feature = "map_entry_keys", since = "1.10.0")]
+     pub fn key(&self) -> &K {
+         &self.key
+     }
+@@ -2010,7 +1947,6 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
+     ///     v.into_key();
+     /// }
+     /// ```
+-    #[stable(feature = "map_entry_recover_keys2", since = "1.12.0")]
+     pub fn into_key(self) -> K {
+         self.key
+     }
+@@ -2031,7 +1967,6 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
+     /// }
+     /// assert_eq!(map["poneyland"], 37);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn insert(self, value: V) -> &'a mut V {
+         match self.elem {
+             NeqElem(bucket, disp) => robin_hood(bucket, disp, self.hash, self.key, value),
+@@ -2040,7 +1975,6 @@ impl<'a, K: 'a, V: 'a> VacantEntry<'a, K, V> {
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<K, V, S> FromIterator<(K, V)> for HashMap<K, V, S>
+     where K: Eq + Hash,
+           S: BuildHasher + Default
+@@ -2052,7 +1986,6 @@ impl<K, V, S> FromIterator<(K, V)> for HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<K, V, S> Extend<(K, V)> for HashMap<K, V, S>
+     where K: Eq + Hash,
+           S: BuildHasher
+@@ -2075,7 +2008,6 @@ impl<K, V, S> Extend<(K, V)> for HashMap<K, V, S>
+     }
+ }
+ 
+-#[stable(feature = "hash_extend_copy", since = "1.4.0")]
+ impl<'a, K, V, S> Extend<(&'a K, &'a V)> for HashMap<K, V, S>
+     where K: Eq + Hash + Copy,
+           V: Copy,
+@@ -2106,12 +2038,13 @@ impl<'a, K, V, S> Extend<(&'a K, &'a V)> for HashMap<K, V, S>
+ /// map.insert(1, 2);
+ /// ```
+ #[derive(Clone)]
+-#[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
++#[cfg(feature="rand")]
+ pub struct RandomState {
+     k0: u64,
+     k1: u64,
+ }
+ 
++#[cfg(feature="rand")]
+ impl RandomState {
+     /// Constructs a new `RandomState` that is initialized with random keys.
+     ///
+@@ -2125,7 +2058,7 @@ impl RandomState {
+     #[inline]
+     #[allow(deprecated)]
+     // rand
+-    #[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
++    #[cfg(feature="rand")]
+     pub fn new() -> RandomState {
+         // Historically this function did not cache keys from the OS and instead
+         // simply always called `rand::thread_rng().gen()` twice. In #31356 it
+@@ -2138,21 +2071,15 @@ impl RandomState {
+         // iteration order allows a form of DOS attack. To counter that we
+         // increment one of the seeds on every RandomState creation, giving
+         // every corresponding HashMap a different iteration order.
+-        thread_local!(static KEYS: Cell<(u64, u64)> = {
+-            let r = rand::OsRng::new();
+-            let mut r = r.expect("failed to create an OS RNG");
+-            Cell::new((r.gen(), r.gen()))
+-        });
+-
+-        KEYS.with(|keys| {
+-            let (k0, k1) = keys.get();
+-            keys.set((k0.wrapping_add(1), k1));
+-            RandomState { k0: k0, k1: k1 }
+-        })
++        let mut r = rand::thread_rng();
++        RandomState {
++            k0: r.gen(),
++            k1: r.gen(),
++        }
+     }
+ }
+ 
+-#[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
++#[cfg(feature="rand")]
+ impl BuildHasher for RandomState {
+     type Hasher = DefaultHasher;
+     #[inline]
+@@ -2169,25 +2096,25 @@ impl BuildHasher for RandomState {
+ ///
+ /// [`RandomState`]: struct.RandomState.html
+ /// [`Hasher`]: ../../hash/trait.Hasher.html
+-#[stable(feature = "hashmap_default_hasher", since = "1.13.0")]
++#[cfg(feature="rand")]
+ #[allow(deprecated)]
+ #[derive(Debug)]
+ pub struct DefaultHasher(SipHasher13);
+ 
++#[cfg(feature="rand")]
+ impl DefaultHasher {
+     /// Creates a new `DefaultHasher`.
+     ///
+     /// This hasher is not guaranteed to be the same as all other
+     /// `DefaultHasher` instances, but is the same as all other `DefaultHasher`
+     /// instances created through `new` or `default`.
+-    #[stable(feature = "hashmap_default_hasher", since = "1.13.0")]
+     #[allow(deprecated)]
+     pub fn new() -> DefaultHasher {
+         DefaultHasher(SipHasher13::new_with_keys(0, 0))
+     }
+ }
+ 
+-#[stable(feature = "hashmap_default_hasher", since = "1.13.0")]
++#[cfg(feature="rand")]
+ impl Default for DefaultHasher {
+     /// Creates a new `DefaultHasher` using [`DefaultHasher::new`]. See
+     /// [`DefaultHasher::new`] documentation for more information.
+@@ -2198,7 +2125,7 @@ impl Default for DefaultHasher {
+     }
+ }
+ 
+-#[stable(feature = "hashmap_default_hasher", since = "1.13.0")]
++#[cfg(feature="rand")]
+ impl Hasher for DefaultHasher {
+     #[inline]
+     fn write(&mut self, msg: &[u8]) {
+@@ -2211,7 +2138,7 @@ impl Hasher for DefaultHasher {
+     }
+ }
+ 
+-#[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
++#[cfg(feature="rand")]
+ impl Default for RandomState {
+     /// Constructs a new `RandomState`.
+     #[inline]
+@@ -2220,7 +2147,8 @@ impl Default for RandomState {
+     }
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
++#[cfg(feature="rand")]
+ impl fmt::Debug for RandomState {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.pad("RandomState { .. }")
+@@ -2264,10 +2192,10 @@ impl<K, S, Q: ?Sized> super::Recover<Q> for HashMap<K, (), S>
+ 
+ #[allow(dead_code)]
+ fn assert_covariance() {
+-    fn map_key<'new>(v: HashMap<&'static str, u8>) -> HashMap<&'new str, u8> {
++    fn map_key<'new, S>(v: HashMap<&'static str, u8, S>) -> HashMap<&'new str, u8, S> {
+         v
+     }
+-    fn map_val<'new>(v: HashMap<u8, &'static str>) -> HashMap<u8, &'new str> {
++    fn map_val<'new, S>(v: HashMap<u8, &'static str, S>) -> HashMap<u8, &'new str, S> {
+         v
+     }
+     fn iter_key<'a, 'new>(v: Iter<'a, &'static str, u8>) -> Iter<'a, &'new str, u8> {
+@@ -2385,9 +2313,7 @@ mod test_map {
+ 
+     impl Dropable {
+         fn new(k: usize) -> Dropable {
+-            DROP_VECTOR.with(|slot| {
+-                slot.borrow_mut()[k] += 1;
+-            });
++            DROP_VECTOR.with(|slot| { slot.borrow_mut()[k] += 1; });
+ 
+             Dropable { k: k }
+         }
+@@ -2395,9 +2321,7 @@ mod test_map {
+ 
+     impl Drop for Dropable {
+         fn drop(&mut self) {
+-            DROP_VECTOR.with(|slot| {
+-                slot.borrow_mut()[self.k] -= 1;
+-            });
++            DROP_VECTOR.with(|slot| { slot.borrow_mut()[self.k] -= 1; });
+         }
+     }
+ 
+@@ -2409,17 +2333,13 @@ mod test_map {
+ 
+     #[test]
+     fn test_drops() {
+-        DROP_VECTOR.with(|slot| {
+-            *slot.borrow_mut() = vec![0; 200];
+-        });
++        DROP_VECTOR.with(|slot| { *slot.borrow_mut() = vec![0; 200]; });
+ 
+         {
+             let mut m = HashMap::new();
+ 
+-            DROP_VECTOR.with(|v| {
+-                for i in 0..200 {
+-                    assert_eq!(v.borrow()[i], 0);
+-                }
++            DROP_VECTOR.with(|v| for i in 0..200 {
++                assert_eq!(v.borrow()[i], 0);
+             });
+ 
+             for i in 0..100 {
+@@ -2428,10 +2348,8 @@ mod test_map {
+                 m.insert(d1, d2);
+             }
+ 
+-            DROP_VECTOR.with(|v| {
+-                for i in 0..200 {
+-                    assert_eq!(v.borrow()[i], 1);
+-                }
++            DROP_VECTOR.with(|v| for i in 0..200 {
++                assert_eq!(v.borrow()[i], 1);
+             });
+ 
+             for i in 0..50 {
+@@ -2442,43 +2360,37 @@ mod test_map {
+ 
+                 DROP_VECTOR.with(|v| {
+                     assert_eq!(v.borrow()[i], 1);
+-                    assert_eq!(v.borrow()[i+100], 1);
++                    assert_eq!(v.borrow()[i + 100], 1);
+                 });
+             }
+ 
+             DROP_VECTOR.with(|v| {
+                 for i in 0..50 {
+                     assert_eq!(v.borrow()[i], 0);
+-                    assert_eq!(v.borrow()[i+100], 0);
++                    assert_eq!(v.borrow()[i + 100], 0);
+                 }
+ 
+                 for i in 50..100 {
+                     assert_eq!(v.borrow()[i], 1);
+-                    assert_eq!(v.borrow()[i+100], 1);
++                    assert_eq!(v.borrow()[i + 100], 1);
+                 }
+             });
+         }
+ 
+-        DROP_VECTOR.with(|v| {
+-            for i in 0..200 {
+-                assert_eq!(v.borrow()[i], 0);
+-            }
++        DROP_VECTOR.with(|v| for i in 0..200 {
++            assert_eq!(v.borrow()[i], 0);
+         });
+     }
+ 
+     #[test]
+     fn test_into_iter_drops() {
+-        DROP_VECTOR.with(|v| {
+-            *v.borrow_mut() = vec![0; 200];
+-        });
++        DROP_VECTOR.with(|v| { *v.borrow_mut() = vec![0; 200]; });
+ 
+         let hm = {
+             let mut hm = HashMap::new();
+ 
+-            DROP_VECTOR.with(|v| {
+-                for i in 0..200 {
+-                    assert_eq!(v.borrow()[i], 0);
+-                }
++            DROP_VECTOR.with(|v| for i in 0..200 {
++                assert_eq!(v.borrow()[i], 0);
+             });
+ 
+             for i in 0..100 {
+@@ -2487,10 +2399,8 @@ mod test_map {
+                 hm.insert(d1, d2);
+             }
+ 
+-            DROP_VECTOR.with(|v| {
+-                for i in 0..200 {
+-                    assert_eq!(v.borrow()[i], 1);
+-                }
++            DROP_VECTOR.with(|v| for i in 0..200 {
++                assert_eq!(v.borrow()[i], 1);
+             });
+ 
+             hm
+@@ -2502,10 +2412,8 @@ mod test_map {
+         {
+             let mut half = hm.into_iter().take(50);
+ 
+-            DROP_VECTOR.with(|v| {
+-                for i in 0..200 {
+-                    assert_eq!(v.borrow()[i], 1);
+-                }
++            DROP_VECTOR.with(|v| for i in 0..200 {
++                assert_eq!(v.borrow()[i], 1);
+             });
+ 
+             for _ in half.by_ref() {}
+@@ -2524,10 +2432,8 @@ mod test_map {
+             });
+         };
+ 
+-        DROP_VECTOR.with(|v| {
+-            for i in 0..200 {
+-                assert_eq!(v.borrow()[i], 0);
+-            }
++        DROP_VECTOR.with(|v| for i in 0..200 {
++            assert_eq!(v.borrow()[i], 0);
+         });
+     }
+ 
+@@ -2697,7 +2603,7 @@ mod test_map {
+     fn test_iterate() {
+         let mut m = HashMap::with_capacity(4);
+         for i in 0..32 {
+-            assert!(m.insert(i, i*2).is_none());
++            assert!(m.insert(i, i * 2).is_none());
+         }
+         assert_eq!(m.len(), 32);
+ 
+@@ -2785,8 +2691,7 @@ mod test_map {
+ 
+         let map_str = format!("{:?}", map);
+ 
+-        assert!(map_str == "{1: 2, 3: 4}" ||
+-                map_str == "{3: 4, 1: 2}");
++        assert!(map_str == "{1: 2, 3: 4}" || map_str == "{3: 4, 1: 2}");
+         assert_eq!(format!("{:?}", empty), "{}");
+     }
+ 
+@@ -3041,12 +2946,11 @@ mod test_map {
+ 
+     #[test]
+     fn test_entry_take_doesnt_corrupt() {
+-        #![allow(deprecated)] //rand
++        //rand
+         // Test for #19292
+         fn check(m: &HashMap<isize, ()>) {
+             for k in m.keys() {
+-                assert!(m.contains_key(k),
+-                        "{} is in keys() but not in the map?", k);
++                assert!(m.contains_key(k), "{} is in keys() but not in the map?", k);
+             }
+         }
+ 
+diff --git a/hash/set.rs b/hash/set.rs
+index 341b050..6911ea7 100644
+--- a/hash/set.rs
++++ b/hash/set.rs
+@@ -8,14 +8,16 @@
+ // option. This file may not be copied, modified, or distributed
+ // except according to those terms.
+ 
+-use borrow::Borrow;
+-use fmt;
+-use hash::{Hash, BuildHasher};
+-use iter::{Chain, FromIterator, FusedIterator};
+-use ops::{BitOr, BitAnd, BitXor, Sub};
++use core::borrow::Borrow;
++use core::fmt;
++use core::hash::{Hash, BuildHasher};
++use core::iter::{Chain, FromIterator, FusedIterator};
++use core::ops::{BitOr, BitAnd, BitXor, Sub};
+ 
+ use super::Recover;
+-use super::map::{self, HashMap, Keys, RandomState};
++use super::map::{self, HashMap, Keys};
++#[cfg(feature="rand")]
++use super::map::RandomState;
+ 
+ // Future Optimization (FIXME!)
+ // =============================
+@@ -110,14 +112,18 @@ use super::map::{self, HashMap, Keys, RandomState};
+ ///     // use the values stored in the set
+ /// }
+ /// ```
+-
+-
++#[cfg(feature="rand")]
+ #[derive(Clone)]
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct HashSet<T, S = RandomState> {
+     map: HashMap<T, (), S>,
+ }
++#[cfg(not(feature="rand"))]
++#[derive(Clone)]
++pub struct HashSet<T, S> {
++    map: HashMap<T, (), S>,
++}
+ 
++#[cfg(feature="rand")]
+ impl<T: Hash + Eq> HashSet<T, RandomState> {
+     /// Creates an empty HashSet.
+     ///
+@@ -128,7 +134,6 @@ impl<T: Hash + Eq> HashSet<T, RandomState> {
+     /// let mut set: HashSet<i32> = HashSet::new();
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn new() -> HashSet<T, RandomState> {
+         HashSet { map: HashMap::new() }
+     }
+@@ -145,7 +150,6 @@ impl<T: Hash + Eq> HashSet<T, RandomState> {
+     /// let mut set: HashSet<i32> = HashSet::with_capacity(10);
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn with_capacity(capacity: usize) -> HashSet<T, RandomState> {
+         HashSet { map: HashMap::with_capacity(capacity) }
+     }
+@@ -176,7 +180,6 @@ impl<T, S> HashSet<T, S>
+     /// set.insert(2);
+     /// ```
+     #[inline]
+-    #[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
+     pub fn with_hasher(hasher: S) -> HashSet<T, S> {
+         HashSet { map: HashMap::with_hasher(hasher) }
+     }
+@@ -203,13 +206,11 @@ impl<T, S> HashSet<T, S>
+     /// set.insert(1);
+     /// ```
+     #[inline]
+-    #[stable(feature = "hashmap_build_hasher", since = "1.7.0")]
+     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> HashSet<T, S> {
+         HashSet { map: HashMap::with_capacity_and_hasher(capacity, hasher) }
+     }
+ 
+     /// Returns a reference to the set's hasher.
+-    #[stable(feature = "hashmap_public_hasher", since = "1.9.0")]
+     pub fn hasher(&self) -> &S {
+         self.map.hasher()
+     }
+@@ -224,7 +225,6 @@ impl<T, S> HashSet<T, S>
+     /// assert!(set.capacity() >= 100);
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn capacity(&self) -> usize {
+         self.map.capacity()
+     }
+@@ -244,7 +244,6 @@ impl<T, S> HashSet<T, S>
+     /// let mut set: HashSet<i32> = HashSet::new();
+     /// set.reserve(10);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn reserve(&mut self, additional: usize) {
+         self.map.reserve(additional)
+     }
+@@ -265,7 +264,6 @@ impl<T, S> HashSet<T, S>
+     /// set.shrink_to_fit();
+     /// assert!(set.capacity() >= 2);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn shrink_to_fit(&mut self) {
+         self.map.shrink_to_fit()
+     }
+@@ -286,7 +284,6 @@ impl<T, S> HashSet<T, S>
+     ///     println!("{}", x);
+     /// }
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn iter(&self) -> Iter<T> {
+         Iter { iter: self.map.keys() }
+     }
+@@ -313,7 +310,6 @@ impl<T, S> HashSet<T, S>
+     /// let diff: HashSet<_> = b.difference(&a).cloned().collect();
+     /// assert_eq!(diff, [4].iter().cloned().collect());
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn difference<'a>(&'a self, other: &'a HashSet<T, S>) -> Difference<'a, T, S> {
+         Difference {
+             iter: self.iter(),
+@@ -341,7 +337,6 @@ impl<T, S> HashSet<T, S>
+     /// assert_eq!(diff1, diff2);
+     /// assert_eq!(diff1, [1, 4].iter().cloned().collect());
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn symmetric_difference<'a>(&'a self,
+                                     other: &'a HashSet<T, S>)
+                                     -> SymmetricDifference<'a, T, S> {
+@@ -365,7 +360,6 @@ impl<T, S> HashSet<T, S>
+     /// let intersection: HashSet<_> = a.intersection(&b).cloned().collect();
+     /// assert_eq!(intersection, [2, 3].iter().cloned().collect());
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn intersection<'a>(&'a self, other: &'a HashSet<T, S>) -> Intersection<'a, T, S> {
+         Intersection {
+             iter: self.iter(),
+@@ -390,7 +384,6 @@ impl<T, S> HashSet<T, S>
+     /// let union: HashSet<_> = a.union(&b).cloned().collect();
+     /// assert_eq!(union, [1, 2, 3, 4].iter().cloned().collect());
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn union<'a>(&'a self, other: &'a HashSet<T, S>) -> Union<'a, T, S> {
+         Union { iter: self.iter().chain(other.difference(self)) }
+     }
+@@ -407,7 +400,6 @@ impl<T, S> HashSet<T, S>
+     /// v.insert(1);
+     /// assert_eq!(v.len(), 1);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn len(&self) -> usize {
+         self.map.len()
+     }
+@@ -424,14 +416,12 @@ impl<T, S> HashSet<T, S>
+     /// v.insert(1);
+     /// assert!(!v.is_empty());
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn is_empty(&self) -> bool {
+         self.map.is_empty()
+     }
+ 
+     /// Clears the set, returning all elements in an iterator.
+     #[inline]
+-    #[stable(feature = "drain", since = "1.6.0")]
+     pub fn drain(&mut self) -> Drain<T> {
+         Drain { iter: self.map.drain() }
+     }
+@@ -448,7 +438,6 @@ impl<T, S> HashSet<T, S>
+     /// v.clear();
+     /// assert!(v.is_empty());
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn clear(&mut self) {
+         self.map.clear()
+     }
+@@ -468,7 +457,6 @@ impl<T, S> HashSet<T, S>
+     /// assert_eq!(set.contains(&1), true);
+     /// assert_eq!(set.contains(&4), false);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+         where T: Borrow<Q>,
+               Q: Hash + Eq
+@@ -481,7 +469,6 @@ impl<T, S> HashSet<T, S>
+     /// The value may be any borrowed form of the set's value type, but
+     /// `Hash` and `Eq` on the borrowed form *must* match those for
+     /// the value type.
+-    #[stable(feature = "set_recovery", since = "1.9.0")]
+     pub fn get<Q: ?Sized>(&self, value: &Q) -> Option<&T>
+         where T: Borrow<Q>,
+               Q: Hash + Eq
+@@ -506,7 +493,6 @@ impl<T, S> HashSet<T, S>
+     /// b.insert(1);
+     /// assert_eq!(a.is_disjoint(&b), false);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn is_disjoint(&self, other: &HashSet<T, S>) -> bool {
+         self.iter().all(|v| !other.contains(v))
+     }
+@@ -527,7 +513,6 @@ impl<T, S> HashSet<T, S>
+     /// set.insert(4);
+     /// assert_eq!(set.is_subset(&sup), false);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn is_subset(&self, other: &HashSet<T, S>) -> bool {
+         self.iter().all(|v| other.contains(v))
+     }
+@@ -552,7 +537,6 @@ impl<T, S> HashSet<T, S>
+     /// assert_eq!(set.is_superset(&sub), true);
+     /// ```
+     #[inline]
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn is_superset(&self, other: &HashSet<T, S>) -> bool {
+         other.is_subset(self)
+     }
+@@ -574,14 +558,12 @@ impl<T, S> HashSet<T, S>
+     /// assert_eq!(set.insert(2), false);
+     /// assert_eq!(set.len(), 1);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn insert(&mut self, value: T) -> bool {
+         self.map.insert(value, ()).is_none()
+     }
+ 
+     /// Adds a value to the set, replacing the existing value, if any, that is equal to the given
+     /// one. Returns the replaced value.
+-    #[stable(feature = "set_recovery", since = "1.9.0")]
+     pub fn replace(&mut self, value: T) -> Option<T> {
+         Recover::replace(&mut self.map, value)
+     }
+@@ -604,7 +586,6 @@ impl<T, S> HashSet<T, S>
+     /// assert_eq!(set.remove(&2), true);
+     /// assert_eq!(set.remove(&2), false);
+     /// ```
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub fn remove<Q: ?Sized>(&mut self, value: &Q) -> bool
+         where T: Borrow<Q>,
+               Q: Hash + Eq
+@@ -617,7 +598,6 @@ impl<T, S> HashSet<T, S>
+     /// The value may be any borrowed form of the set's value type, but
+     /// `Hash` and `Eq` on the borrowed form *must* match those for
+     /// the value type.
+-    #[stable(feature = "set_recovery", since = "1.9.0")]
+     pub fn take<Q: ?Sized>(&mut self, value: &Q) -> Option<T>
+         where T: Borrow<Q>,
+               Q: Hash + Eq
+@@ -626,7 +606,6 @@ impl<T, S> HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<T, S> PartialEq for HashSet<T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -640,14 +619,12 @@ impl<T, S> PartialEq for HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<T, S> Eq for HashSet<T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+ {
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<T, S> fmt::Debug for HashSet<T, S>
+     where T: Eq + Hash + fmt::Debug,
+           S: BuildHasher
+@@ -657,7 +634,6 @@ impl<T, S> fmt::Debug for HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<T, S> FromIterator<T> for HashSet<T, S>
+     where T: Eq + Hash,
+           S: BuildHasher + Default
+@@ -669,7 +645,6 @@ impl<T, S> FromIterator<T> for HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<T, S> Extend<T> for HashSet<T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -679,7 +654,6 @@ impl<T, S> Extend<T> for HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "hash_extend_copy", since = "1.4.0")]
+ impl<'a, T, S> Extend<&'a T> for HashSet<T, S>
+     where T: 'a + Eq + Hash + Copy,
+           S: BuildHasher
+@@ -689,7 +663,6 @@ impl<'a, T, S> Extend<&'a T> for HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<T, S> Default for HashSet<T, S>
+     where T: Eq + Hash,
+           S: BuildHasher + Default
+@@ -700,7 +673,6 @@ impl<T, S> Default for HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, 'b, T, S> BitOr<&'b HashSet<T, S>> for &'a HashSet<T, S>
+     where T: Eq + Hash + Clone,
+           S: BuildHasher + Default
+@@ -732,7 +704,6 @@ impl<'a, 'b, T, S> BitOr<&'b HashSet<T, S>> for &'a HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, 'b, T, S> BitAnd<&'b HashSet<T, S>> for &'a HashSet<T, S>
+     where T: Eq + Hash + Clone,
+           S: BuildHasher + Default
+@@ -764,7 +735,6 @@ impl<'a, 'b, T, S> BitAnd<&'b HashSet<T, S>> for &'a HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, 'b, T, S> BitXor<&'b HashSet<T, S>> for &'a HashSet<T, S>
+     where T: Eq + Hash + Clone,
+           S: BuildHasher + Default
+@@ -796,7 +766,6 @@ impl<'a, 'b, T, S> BitXor<&'b HashSet<T, S>> for &'a HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, 'b, T, S> Sub<&'b HashSet<T, S>> for &'a HashSet<T, S>
+     where T: Eq + Hash + Clone,
+           S: BuildHasher + Default
+@@ -829,25 +798,21 @@ impl<'a, 'b, T, S> Sub<&'b HashSet<T, S>> for &'a HashSet<T, S>
+ }
+ 
+ /// HashSet iterator
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Iter<'a, K: 'a> {
+     iter: Keys<'a, K, ()>,
+ }
+ 
+ /// HashSet move iterator
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct IntoIter<K> {
+     iter: map::IntoIter<K, ()>,
+ }
+ 
+ /// HashSet drain iterator
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Drain<'a, K: 'a> {
+     iter: map::Drain<'a, K, ()>,
+ }
+ 
+ /// Intersection iterator
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Intersection<'a, T: 'a, S: 'a> {
+     // iterator of the first set
+     iter: Iter<'a, T>,
+@@ -856,7 +821,6 @@ pub struct Intersection<'a, T: 'a, S: 'a> {
+ }
+ 
+ /// Difference iterator
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Difference<'a, T: 'a, S: 'a> {
+     // iterator of the first set
+     iter: Iter<'a, T>,
+@@ -865,18 +829,15 @@ pub struct Difference<'a, T: 'a, S: 'a> {
+ }
+ 
+ /// Symmetric difference iterator.
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct SymmetricDifference<'a, T: 'a, S: 'a> {
+     iter: Chain<Difference<'a, T, S>, Difference<'a, T, S>>,
+ }
+ 
+ /// Set union iterator.
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub struct Union<'a, T: 'a, S: 'a> {
+     iter: Chain<Iter<'a, T>, Difference<'a, T, S>>,
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, T, S> IntoIterator for &'a HashSet<T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -889,7 +850,6 @@ impl<'a, T, S> IntoIterator for &'a HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<T, S> IntoIterator for HashSet<T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -922,13 +882,11 @@ impl<T, S> IntoIterator for HashSet<T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K> Clone for Iter<'a, K> {
+     fn clone(&self) -> Iter<'a, K> {
+         Iter { iter: self.iter.clone() }
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, K> Iterator for Iter<'a, K> {
+     type Item = &'a K;
+ 
+@@ -939,16 +897,16 @@ impl<'a, K> Iterator for Iter<'a, K> {
+         self.iter.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, K> ExactSizeIterator for Iter<'a, K> {
+     fn len(&self) -> usize {
+         self.iter.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, K> FusedIterator for Iter<'a, K> {}
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K: fmt::Debug> fmt::Debug for Iter<'a, K> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -957,7 +915,7 @@ impl<'a, K: fmt::Debug> fmt::Debug for Iter<'a, K> {
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<K> Iterator for IntoIter<K> {
+     type Item = K;
+ 
+@@ -968,16 +926,16 @@ impl<K> Iterator for IntoIter<K> {
+         self.iter.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<K> ExactSizeIterator for IntoIter<K> {
+     fn len(&self) -> usize {
+         self.iter.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<K> FusedIterator for IntoIter<K> {}
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<K: fmt::Debug> fmt::Debug for IntoIter<K> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         let entries_iter = self.iter.inner.iter().map(|(k, _)| k);
+@@ -987,7 +945,7 @@ impl<K: fmt::Debug> fmt::Debug for IntoIter<K> {
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, K> Iterator for Drain<'a, K> {
+     type Item = K;
+ 
+@@ -998,16 +956,16 @@ impl<'a, K> Iterator for Drain<'a, K> {
+         self.iter.size_hint()
+     }
+ }
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, K> ExactSizeIterator for Drain<'a, K> {
+     fn len(&self) -> usize {
+         self.iter.len()
+     }
+ }
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, K> FusedIterator for Drain<'a, K> {}
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, K: fmt::Debug> fmt::Debug for Drain<'a, K> {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         let entries_iter = self.iter.inner.iter().map(|(k, _)| k);
+@@ -1017,14 +975,14 @@ impl<'a, K: fmt::Debug> fmt::Debug for Drain<'a, K> {
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, T, S> Clone for Intersection<'a, T, S> {
+     fn clone(&self) -> Intersection<'a, T, S> {
+         Intersection { iter: self.iter.clone(), ..*self }
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, T, S> Iterator for Intersection<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -1050,10 +1008,10 @@ impl<'a, T, S> Iterator for Intersection<'a, T, S>
+     }
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, T, S> fmt::Debug for Intersection<'a, T, S>
+     where T: fmt::Debug + Eq + Hash,
+-          S: BuildHasher,
++          S: BuildHasher
+ {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1062,21 +1020,18 @@ impl<'a, T, S> fmt::Debug for Intersection<'a, T, S>
+     }
+ }
+ 
+-#[unstable(feature = "fused", issue = "35602")]
+ impl<'a, T, S> FusedIterator for Intersection<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+ {
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, T, S> Clone for Difference<'a, T, S> {
+     fn clone(&self) -> Difference<'a, T, S> {
+         Difference { iter: self.iter.clone(), ..*self }
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ impl<'a, T, S> Iterator for Difference<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -1102,17 +1057,17 @@ impl<'a, T, S> Iterator for Difference<'a, T, S>
+     }
+ }
+ 
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, T, S> FusedIterator for Difference<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+ {
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, T, S> fmt::Debug for Difference<'a, T, S>
+     where T: fmt::Debug + Eq + Hash,
+-          S: BuildHasher,
++          S: BuildHasher
+ {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1121,14 +1076,14 @@ impl<'a, T, S> fmt::Debug for Difference<'a, T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, T, S> Clone for SymmetricDifference<'a, T, S> {
+     fn clone(&self) -> SymmetricDifference<'a, T, S> {
+         SymmetricDifference { iter: self.iter.clone() }
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, T, S> Iterator for SymmetricDifference<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -1143,17 +1098,17 @@ impl<'a, T, S> Iterator for SymmetricDifference<'a, T, S>
+     }
+ }
+ 
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, T, S> FusedIterator for SymmetricDifference<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+ {
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, T, S> fmt::Debug for SymmetricDifference<'a, T, S>
+     where T: fmt::Debug + Eq + Hash,
+-          S: BuildHasher,
++          S: BuildHasher
+ {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1162,24 +1117,24 @@ impl<'a, T, S> fmt::Debug for SymmetricDifference<'a, T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, T, S> Clone for Union<'a, T, S> {
+     fn clone(&self) -> Union<'a, T, S> {
+         Union { iter: self.iter.clone() }
+     }
+ }
+ 
+-#[unstable(feature = "fused", issue = "35602")]
++
+ impl<'a, T, S> FusedIterator for Union<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+ {
+ }
+ 
+-#[stable(feature = "std_debug", since = "1.15.0")]
++
+ impl<'a, T, S> fmt::Debug for Union<'a, T, S>
+     where T: fmt::Debug + Eq + Hash,
+-          S: BuildHasher,
++          S: BuildHasher
+ {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.debug_list()
+@@ -1188,7 +1143,7 @@ impl<'a, T, S> fmt::Debug for Union<'a, T, S>
+     }
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
++
+ impl<'a, T, S> Iterator for Union<'a, T, S>
+     where T: Eq + Hash,
+           S: BuildHasher
+@@ -1205,7 +1160,7 @@ impl<'a, T, S> Iterator for Union<'a, T, S>
+ 
+ #[allow(dead_code)]
+ fn assert_covariance() {
+-    fn set<'new>(v: HashSet<&'static str>) -> HashSet<&'new str> {
++    fn set<'new, S>(v: HashSet<&'static str, S>) -> HashSet<&'new str, S> {
+         v
+     }
+     fn iter<'a, 'new>(v: Iter<'a, &'static str>) -> Iter<'a, &'new str> {
+@@ -1214,20 +1169,21 @@ fn assert_covariance() {
+     fn into_iter<'new>(v: IntoIter<&'static str>) -> IntoIter<&'new str> {
+         v
+     }
+-    fn difference<'a, 'new>(v: Difference<'a, &'static str, RandomState>)
+-                            -> Difference<'a, &'new str, RandomState> {
++    fn difference<'a, 'new, RandomState>(v: Difference<'a, &'static str, RandomState>)
++                                         -> Difference<'a, &'new str, RandomState> {
+         v
+     }
+-    fn symmetric_difference<'a, 'new>(v: SymmetricDifference<'a, &'static str, RandomState>)
+-                                      -> SymmetricDifference<'a, &'new str, RandomState> {
++    fn symmetric_difference<'a, 'new, RandomState>
++        (v: SymmetricDifference<'a, &'static str, RandomState>)
++         -> SymmetricDifference<'a, &'new str, RandomState> {
+         v
+     }
+-    fn intersection<'a, 'new>(v: Intersection<'a, &'static str, RandomState>)
+-                              -> Intersection<'a, &'new str, RandomState> {
++    fn intersection<'a, 'new, RandomState>(v: Intersection<'a, &'static str, RandomState>)
++                                           -> Intersection<'a, &'new str, RandomState> {
+         v
+     }
+-    fn union<'a, 'new>(v: Union<'a, &'static str, RandomState>)
+-                       -> Union<'a, &'new str, RandomState> {
++    fn union<'a, 'new, RandomState>(v: Union<'a, &'static str, RandomState>)
++                                    -> Union<'a, &'new str, RandomState> {
+         v
+     }
+     fn drain<'new>(d: Drain<'static, &'static str>) -> Drain<'new, &'new str> {
+diff --git a/hash/table.rs b/hash/table.rs
+index 1ab6213..5753797 100644
+--- a/hash/table.rs
++++ b/hash/table.rs
+@@ -10,14 +10,14 @@
+ 
+ use alloc::heap::{EMPTY, allocate, deallocate};
+ 
+-use cmp;
+-use hash::{BuildHasher, Hash, Hasher};
+-use intrinsics::needs_drop;
+-use marker;
+-use mem::{align_of, size_of};
+-use mem;
+-use ops::{Deref, DerefMut};
+-use ptr::{self, Unique, Shared};
++use core::cmp;
++use core::hash::{BuildHasher, Hash, Hasher};
++use core::intrinsics::needs_drop;
++use core::marker;
++use core::mem::{align_of, size_of};
++use core::mem;
++use core::ops::{Deref, DerefMut};
++use core::ptr::{self, Unique, Shared};
+ 
+ use self::BucketState::*;
+ 
+diff --git a/mod.rs b/mod.rs
+index b9e92a0..821466c 100644
+--- a/mod.rs
++++ b/mod.rs
+@@ -417,41 +417,28 @@
+ //! [`BinaryHeap`]: ../../std/collections/struct.BinaryHeap.html
+ //! [`IntoIterator`]: ../../std/iter/trait.IntoIterator.html
+ 
+-#![stable(feature = "rust1", since = "1.0.0")]
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use core_collections::Bound;
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use core_collections::{BinaryHeap, BTreeMap, BTreeSet};
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use core_collections::{LinkedList, VecDeque};
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use core_collections::{binary_heap, btree_map, btree_set};
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use core_collections::{linked_list, vec_deque};
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use self::hash_map::HashMap;
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use self::hash_set::HashSet;
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub use core_collections::range;
+ 
+ mod hash;
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub mod hash_map {
+     //! A hash map implementation which uses linear probing with Robin
+     //! Hood bucket stealing.
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub use super::hash::map::*;
+ }
+ 
+-#[stable(feature = "rust1", since = "1.0.0")]
+ pub mod hash_set {
+     //! An implementation of a hash set using the underlying representation of a
+     //! HashMap where the value is ().
+-    #[stable(feature = "rust1", since = "1.0.0")]
+     pub use super::hash::set::*;
+ }
