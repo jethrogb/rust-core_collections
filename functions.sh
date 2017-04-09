@@ -48,8 +48,18 @@ bold_arrow() {
 	echo -ne '\e[1;36m==> \e[0m'
 }
 
+custom_bashrc() {
+	echo '
+if [ -f ~/.bashrc ]; then . ~/.bashrc; fi
+
+try_patch() {
+	patch -p1 < ../../patches/$1.patch
+}
+'
+}
+
 bash_diff_loop() {
-	bash <> /dev/stderr
+	bash --rcfile <(custom_bashrc) <> /dev/stderr
 	while git diff --exit-code > /dev/null; do
 		bold_arrow; echo "$1"
 		while true; do

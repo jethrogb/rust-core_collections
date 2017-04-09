@@ -17,7 +17,7 @@ prompt_changes() {
 	GIT_DIR="$MAIN_GIT_DIR" git_commits_ordered '%H %cd' $(get_patch_commits) $COLLECTIONS_COMMIT | \
 	grep --color=always -1 $COLLECTIONS_COMMIT | sed /$COLLECTIONS_COMMIT/'s/$/ <=== your commit/'
 	echo
-	bold_arrow; echo -e "Try applying one of those using: \e[1;36mpatch -p1 < ../../patches/COMMIT.patch\e[0m"
+	bold_arrow; echo -e "Try applying one of those using: \e[1;36mtry_patch COMMIT\e[0m"
 	bold_arrow; echo -e "Remember to test your changes with: \e[1;36mcargo build\e[0m"
 	bold_arrow; echo -e "Make your changes now (\e[1;36mctrl-D\e[0m when finished)"
 	bash_diff_loop "No changes were made"
@@ -67,5 +67,5 @@ done
 OLD_GIT_PERM=$(stat --printf=%a .git)
 trap "chmod $OLD_GIT_PERM .git; exit 1" SIGINT
 chmod 000 .git
-cargo package
+cargo ${1:-package}
 chmod $OLD_GIT_PERM .git

@@ -36,27 +36,27 @@ impl Sub<Mapping> for Vec<Mapping> {
 }
 
 fn main() {
+	let ver=rustc_version::version_meta();
+
 	let coll_commit=match env::var("CORE_COLLECTIONS_COMMIT") {
 		Ok(c) => c,
 		Err(env::VarError::NotUnicode(_)) => panic!("Invalid commit specified in CORE_COLLECTIONS_COMMIT"),
 		Err(env::VarError::NotPresent) => {
 			let mappings=include!("mapping.rs");
 			
-			let compiler=rustc_version::version_meta().commit_hash.expect("Couldn't determine compiler version");
+			let compiler=ver.commit_hash.expect("Couldn't determine compiler version");
 			mappings.iter().find(|&&Mapping(elem,_)|elem==compiler).expect("Unknown compiler version, upgrade core_collections?").1.to_owned()
 		}
 	};
-	
-	if let Some(date)=rustc_version::version_meta().commit_date {
-		if &date[..]>"2016-08-23" {
-			println!("cargo:rustc-cfg=no_no_drop_flag");
-		}
+
+	if ver.commit_date.as_ref().map_or(false,|d| &**d>"2016-08-23") {
+		println!("cargo:rustc-cfg=no_no_drop_flag");
 	}
-	
+
 	let mut dest_path=PathBuf::from(env::var_os("OUT_DIR").unwrap());
 	dest_path.push("collections.rs");
 	let mut f=File::create(&dest_path).unwrap();
-	
+
 	let mut target_path=PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
 	target_path.push("src");
 	target_path.push(coll_commit);
